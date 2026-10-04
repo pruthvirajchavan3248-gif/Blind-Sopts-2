@@ -7,12 +7,8 @@
   --bg-main: #F6F8FA;
   --bg-card: #FFFFFF;
   --text-main: #0F172A;
-  --text-muted: #475569;
-  --border-light: #E2E8F0;
-  
-  --brand-blue: #1D4ED8;
-  --brand-blue-hover: #1E40AF;
-  --brand-bg: #EFF6FF;
+  --text-muted: #334155;
+  --border-light: #CBD5E1;
 }
 
 body {
@@ -26,18 +22,66 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Accessible focus states for older adults */
+/* High Contrast Mode (WCAG AAA Accessibility for Seniors & Low Vision) */
+.high-contrast {
+  background-color: #FFFFFF !important;
+  color: #000000 !important;
+}
+.high-contrast * {
+  border-color: #000000 !important;
+}
+.high-contrast button {
+  border-width: 2px !important;
+  font-weight: 800 !important;
+}
+.high-contrast p,
+.high-contrast span,
+.high-contrast label,
+.high-contrast h1,
+.high-contrast h2,
+.high-contrast h3,
+.high-contrast h4 {
+  color: #000000 !important;
+}
+.high-contrast input,
+.high-contrast textarea,
+.high-contrast select {
+  background-color: #FFFFFF !important;
+  color: #000000 !important;
+  border: 3px solid #000000 !important;
+  font-weight: 700 !important;
+}
+
+/* Skip link for keyboard accessibility */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 10px;
+  background: #1D4ED8;
+  color: #FFFFFF;
+  padding: 12px 20px;
+  z-index: 100;
+  font-weight: 800;
+  border-radius: 8px;
+  transition: top 0.2s ease;
+}
+.skip-link:focus {
+  top: 10px;
+}
+
+/* Accessible focus states */
 button:focus-visible,
+a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 3px solid #2563EB !important;
-  outline-offset: 2px !important;
+  outline: 4px solid #1D4ED8 !important;
+  outline-offset: 3px !important;
 }
 
-/* Print styling support for easy printing for senior users */
+/* Print styling support */
 @media print {
-  header, footer, button {
+  header, footer, button, .skip-link {
     display: none !important;
   }
   body {

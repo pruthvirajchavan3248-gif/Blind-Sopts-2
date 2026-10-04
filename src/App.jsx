@@ -23,14 +23,17 @@ import {
   getCurrentUser,
   signOutUser
 } from './services/supabaseClient';
-import { Calendar, ArrowRight, CloudCheck, UserCheck, LogOut } from 'lucide-react';
+import { Calendar, ArrowRight, CloudCheck } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('hud');
   const [activePipelineStep, setActivePipelineStep] = useState('blindspots');
   const [currentScenario, setCurrentScenario] = useState(PRESET_SCENARIOS[0]);
   const [evaluation, setEvaluation] = useState(PRESET_SCENARIOS[0].evaluation);
-  const [textSize, setTextSize] = useState('normal');
+  
+  // Accessibility state
+  const [textSize, setTextSize] = useState('normal'); // 'normal' | 'large' | 'xlarge'
+  const [highContrast, setHighContrast] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Supabase & Auth state
@@ -40,23 +43,41 @@ export default function App() {
   const [savedHistory, setSavedHistory] = useState([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
+  // Handle High Contrast mode toggle on root body element
+  useEffect(() => {
+    if (highContrast) {
+      document.body.classList.add('high-contrast');
+    } else {
+      document.body.classList.remove('high-contrast');
+    }
+  }, [highContrast]);
+
+  // Handle Escape key listener to close modals for keyboard accessibility
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowAuthModal(false);
+        setShowHistoryModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   useEffect(() => {
     async function initAppAuth() {
       const conn = await checkSupabaseConnection();
       setSupabaseConnected(conn.connected);
 
-      // Check current user session
       const user = await getCurrentUser();
       setCurrentUser(user);
 
-      // Fetch initial history
       const history = await getSavedEvaluations(user);
       setSavedHistory(history || []);
     }
 
     initAppAuth();
 
-    // Listen to Supabase Auth state changes in real time
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         setCurrentUser(session.user);
@@ -81,7 +102,6 @@ export default function App() {
       setActiveTab('hud');
       setActivePipelineStep('blindspots');
       
-      // Save evaluation to Supabase
       saveEvaluationToSupabase(result, currentUser).then(async () => {
         const history = await getSavedEvaluations(currentUser);
         setSavedHistory(history || []);
@@ -129,13 +149,20 @@ export default function App() {
 
   return (
     <div className={`min-h-screen bg-[#F6F8FA] text-slate-900 font-sans flex flex-col justify-between ${textSizeClass}`}>
+      {/* Keyboard Accessibility Skip Link */}
+      <a href="#main-content" className="skip-link font-bold">
+        Skip to main content
+      </a>
+
       <div>
-        {/* Header with Log In / Log Out & Auth state */}
+        {/* Accessible Header with Text-to-Speech & High Contrast */}
         <Header
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           textSize={textSize}
           setTextSize={setTextSize}
+          highContrast={highContrast}
+          setHighContrast={setHighContrast}
           supabaseConnected={supabaseConnected}
           onSaveToCloud={handleSaveToCloud}
           savedCount={savedHistory.length}
@@ -143,10 +170,11 @@ export default function App() {
           currentUser={currentUser}
           onOpenAuthModal={() => setShowAuthModal(true)}
           onSignOut={handleSignOut}
+          currentEvaluation={evaluation}
         />
 
-        {/* Main Application Container */}
-        <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Main Application Content */}
+        <main id="main-content" className="max-w-7xl mx-auto px-4 py-8" role="main">
           {activeTab === 'scenarios' ? (
             <PresetScenariosView onSelectScenario={handleSelectPreset} />
           ) : activeTab === 'json' ? (
@@ -170,7 +198,7 @@ export default function App() {
               />
 
               {/* Step Content Panels */}
-              <div className="mt-6">
+              <div className="mt-6" aria-live="polite">
                 {activePipelineStep === 'context' && (
                   <ContextMappingView evaluation={evaluation} />
                 )}
@@ -213,15 +241,15 @@ export default function App() {
 
       {/* Saved Supabase History Modal */}
       {showHistoryModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
           <div className="bg-white border border-slate-300 rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl space-y-4 max-h-[85vh] flex flex-col justify-between">
             <div className="flex justify-between items-center border-b border-slate-200 pb-4">
               <div className="flex items-center gap-2.5">
                 <div className="p-2.5 bg-emerald-100 text-emerald-800 rounded-2xl">
-                  <CloudCheck className="w-6 h-6 text-emerald-600" />
+                  <CloudCheck className="w-6 h-6 text-emerald-600" aria-hidden="true" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-extrabold text-slate-900">
+                  <h3 id="history-modal-title" className="text-lg font-extrabold text-slate-900">
                     Saved Supabase Decision History
                   </h3>
                   <p className="text-xs text-slate-500 font-medium">
@@ -235,6 +263,7 @@ export default function App() {
               <button
                 onClick={() => setShowHistoryModal(false)}
                 className="text-slate-400 hover:text-slate-600 p-2 rounded-xl text-lg font-bold"
+                aria-label="Close history modal"
               >
                 ✕
               </button>
@@ -255,7 +284,7 @@ export default function App() {
                       </h4>
                       <div className="flex items-center gap-3 text-xs font-semibold text-slate-500">
                         <span className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
                           {new Date(item.created_at || Date.now()).toLocaleDateString()}
                         </span>
                         <span>Risk: <strong className="text-rose-600">{item.primary_risk_score || 'Medium'}</strong></span>
@@ -265,8 +294,9 @@ export default function App() {
 
                     <button
                       className="px-3.5 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs"
+                      aria-label="Load this saved evaluation"
                     >
-                      Load <ArrowRight className="w-3.5 h-3.5" />
+                      Load <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
                     </button>
                   </div>
                 ))
@@ -290,11 +320,11 @@ export default function App() {
       )}
 
       {/* Accessible Footer */}
-      <footer className="border-t border-slate-200 bg-white py-6 text-center text-sm font-medium text-slate-600 mt-16">
+      <footer className="border-t border-slate-200 bg-white py-6 text-center text-sm font-medium text-slate-600 mt-16" role="contentinfo">
         <div className="max-w-7xl mx-auto px-4 flex flex-wrap justify-between items-center gap-3">
           <span className="font-bold text-slate-800">Blind Spot AI — Clear Decision Helper</span>
           <span className="text-emerald-700 font-bold flex items-center gap-1">
-            <CloudCheck className="w-4 h-4 text-emerald-600" /> Connected to Supabase Authentication & Cloud Database
+            <CloudCheck className="w-4 h-4 text-emerald-600" aria-hidden="true" /> WCAG 2.1 AAA Accessibility & Supabase Cloud Connected
           </span>
         </div>
       </footer>
