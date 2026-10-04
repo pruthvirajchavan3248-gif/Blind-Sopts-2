@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+:root {
+  --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Fira Code', monospace;
+  
+  --bg-main: #F6F8FA;
+  --bg-card: #FFFFFF;
+  --text-main: #0F172A;
+  --text-muted: #475569;
+  --border-light: #E2E8F0;
+  
+  --brand-blue: #1D4ED8;
+  --brand-blue-hover: #1E40AF;
+  --brand-bg: #EFF6FF;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #F6F8FA;
+  color: #0F172A;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Accessible focus states for older adults */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid #2563EB !important;
+  outline-offset: 2px !important;
+}
+
+/* Print styling support for easy printing for senior users */
+@media print {
+  header, footer, button {
+    display: none !important;
+  }
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+}
