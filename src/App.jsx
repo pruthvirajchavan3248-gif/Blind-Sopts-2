@@ -11,15 +11,19 @@ import RecommendationMatrixView from './components/RecommendationMatrixView';
 import LearningLoopView from './components/LearningLoopView';
 import JsonExporterView from './components/JsonExporterView';
 import PresetScenariosView from './components/PresetScenariosView';
+import AuthModal from './components/AuthModal';
 
 import { PRESET_SCENARIOS } from './data/presetScenarios';
 import { analyzeDecision } from './services/blindSpotEngine';
 import { 
+  supabase,
   checkSupabaseConnection, 
   saveEvaluationToSupabase, 
-  getSavedEvaluations 
+  getSavedEvaluations,
+  getCurrentUser,
+  signOutUser
 } from './services/supabaseClient';
-import { Database, Calendar, ShieldAlert, ArrowRight, X, CloudCheck } from 'lucide-react';
+import { Calendar, ArrowRight, CloudCheck, UserCheck, LogOut } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('hud');
@@ -29,19 +33,44 @@ export default function App() {
   const [textSize, setTextSize] = useState('normal');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // Supabase state
+  // Supabase & Auth state
   const [supabaseConnected, setSupabaseConnected] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [savedHistory, setSavedHistory] = useState([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   useEffect(() => {
-    async function initSupabase() {
+    async function initAppAuth() {
       const conn = await checkSupabaseConnection();
       setSupabaseConnected(conn.connected);
-      const history = await getSavedEvaluations();
+
+      // Check current user session
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+
+      // Fetch initial history
+      const history = await getSavedEvaluations(user);
       setSavedHistory(history || []);
     }
-    initSupabase();
+
+    initAppAuth();
+
+    // Listen to Supabase Auth state changes in real time
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        setCurrentUser(session.user);
+        const history = await getSavedEvaluations(session.user);
+        setSavedHistory(history || []);
+      } else {
+        const demoUser = await getCurrentUser();
+        setCurrentUser(demoUser);
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const handleRunAnalysis = async (inputParams) => {
@@ -52,9 +81,9 @@ export default function App() {
       setActiveTab('hud');
       setActivePipelineStep('blindspots');
       
-      // Auto-save evaluation to Supabase
-      saveEvaluationToSupabase(result).then(async () => {
-        const history = await getSavedEvaluations();
+      // Save evaluation to Supabase
+      saveEvaluationToSupabase(result, currentUser).then(async () => {
+        const history = await getSavedEvaluations(currentUser);
         setSavedHistory(history || []);
       });
     } catch (err) {
@@ -66,8 +95,15 @@ export default function App() {
 
   const handleSaveToCloud = async () => {
     if (!evaluation) return;
-    await saveEvaluationToSupabase(evaluation);
-    const history = await getSavedEvaluations();
+    await saveEvaluationToSupabase(evaluation, currentUser);
+    const history = await getSavedEvaluations(currentUser);
+    setSavedHistory(history || []);
+  };
+
+  const handleSignOut = async () => {
+    await signOutUser();
+    setCurrentUser(null);
+    const history = await getSavedEvaluations(null);
     setSavedHistory(history || []);
   };
 
@@ -94,7 +130,7 @@ export default function App() {
   return (
     <div className={`min-h-screen bg-[#F6F8FA] text-slate-900 font-sans flex flex-col justify-between ${textSizeClass}`}>
       <div>
-        {/* Accessible Header with Supabase integration */}
+        {/* Header with Log In / Log Out & Auth state */}
         <Header
           activeTab={activeTab}
           setActiveTab={setActiveTab}
@@ -104,6 +140,9 @@ export default function App() {
           onSaveToCloud={handleSaveToCloud}
           savedCount={savedHistory.length}
           onShowHistory={() => setShowHistoryModal(true)}
+          currentUser={currentUser}
+          onOpenAuthModal={() => setShowAuthModal(true)}
+          onSignOut={handleSignOut}
         />
 
         {/* Main Application Container */}
@@ -162,6 +201,16 @@ export default function App() {
         </main>
       </div>
 
+      {/* Auth Modal (Log In / Sign Up) */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onAuthSuccess={(user) => {
+          setCurrentUser(user);
+          getSavedEvaluations(user).then(h => setSavedHistory(h || []));
+        }}
+      />
+
       {/* Saved Supabase History Modal */}
       {showHistoryModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -176,7 +225,9 @@ export default function App() {
                     Saved Supabase Decision History
                   </h3>
                   <p className="text-xs text-slate-500 font-medium">
-                    Evaluations saved live in your cloud database (https://rewxqwdwqtxiqgjttnrv.supabase.co)
+                    {currentUser 
+                      ? `Saved for user ${currentUser.email || currentUser.user_metadata?.full_name || 'Account'}`
+                      : 'Evaluations saved in your cloud database'}
                   </p>
                 </div>
               </div>
@@ -243,7 +294,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 flex flex-wrap justify-between items-center gap-3">
           <span className="font-bold text-slate-800">Blind Spot AI — Clear Decision Helper</span>
           <span className="text-emerald-700 font-bold flex items-center gap-1">
-            <CloudCheck className="w-4 h-4 text-emerald-600" /> Connected to Supabase Cloud Database
+            <CloudCheck className="w-4 h-4 text-emerald-600" /> Connected to Supabase Authentication & Cloud Database
           </span>
         </div>
       </footer>
